@@ -1,0 +1,57 @@
+# JFrog Platform base: Artifactory Pro + PostgreSQL.
+# Xray is installed from JFrog's official compose installer (see xray/install-xray.sh)
+# and joins this Artifactory with the same JOIN_KEY.
+name: jfrog-platform
+
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-15}
+    container_name: artifactory-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: artifactory
+      POSTGRES_USER: artifactory
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run scripts/setup.sh first}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U artifactory -d artifactory"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  artifactory:
+    image: releases-docker.jfrog.io/jfrog/artifactory-pro:${ARTIFACTORY_VERSION:-latest}
+    container_name: artifactory
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"   # Artifactory
+      - "8082:8082"   # Router / UI / Docker registry (repo-path method)
+    environment:
+      JF_SHARED_DATABASE_TYPE: postgresql
+      JF_SHARED_DATABASE_DRIVER: org.postgresql.Driver
+      JF_SHARED_DATABASE_URL: jdbc:postgresql://postgres:5432/artifactory
+      JF_SHARED_DATABASE_USERNAME: artifactory
+      JF_SHARED_DATABASE_PASSWORD: ${DB_PASSWORD}
+      JF_SHARED_SECURITY_JOINKEY: ${JOIN_KEY:?run scripts/setup.sh first}
+      JF_SHARED_NODE_IP: ${HOST_IP}
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+    volumes:
+      - artifactory_data:/var/opt/jfrog/artifactory
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8082/router/api/v1/system/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+volumes:
+  pgdata:
+  artifactory_data:

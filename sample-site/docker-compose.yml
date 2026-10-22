@@ -1,0 +1,16 @@
+# Deliberately outdated sample website so Xray has something to find.
+# DO NOT deploy this anywhere public.
+name: sample-site
+services:
+  app:
+    build: ./app
+    image: ${REGISTRY:-localhost:8082}/docker-local/sample-app:${TAG:-1.0.0}
+    restart: unless-stopped
+    expose: ["3000"]
+  web:
+    build: ./web
+    image: ${REGISTRY:-localhost:8082}/docker-local/sample-web:${TAG:-1.0.0}
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "8080:80"
